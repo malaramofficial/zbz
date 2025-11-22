@@ -1,0 +1,720 @@
+#!/usr/bin/env bash
+set -e
+# CHANGE this path if you want another location
+ROOT="$HOME/rajasthan-ai-scholar"
+echo "Creating project at $ROOT"
+
+if [ -d "$ROOT" ]; then
+  echo "Removing existing folder $ROOT"
+  rm -rf "$ROOT"
+fi
+
+mkdir -p "$ROOT"
+cd "$ROOT"
+
+########################
+# package.json
+########################
+cat > package.json <<'JSON'
+{
+  "name": "rajasthan-ai-scholar",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "firebase": "^9.23.0",
+    "next-auth": "^4.22.1",
+    "swr": "^2.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "tailwindcss": "^3.5.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
+  }
+}
+JSON
+
+########################
+# Next & TS config
+########################
+cat > next.config.js <<'JS'
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  swcMinify: true,
+}
+module.exports = nextConfig
+JS
+
+cat > tsconfig.json <<'TS'
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM","DOM.Iterable","ESNext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}
+TS
+
+cat > next-env.d.ts <<'D'
+/// <reference types="next" />
+/// <reference types="next/types/global" />
+D
+
+########################
+# Tailwind
+########################
+cat > postcss.config.cjs <<'PC'
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+PC
+
+cat > tailwind.config.cjs <<'TC'
+module.exports = {
+  content: ['./src/**/*.{js,ts,jsx,tsx}', './pages/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+TC
+
+########################
+# Folder structure + core files (src, pages)
+########################
+mkdir -p src/pages/api src/pages src/components src/lib src/styles src/data public android
+
+# global css
+cat > src/styles/globals.css <<'CSS'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #__next { height: 100%; }
+body { background-color: #f8fafc; }
+CSS
+
+# _app
+cat > src/pages/_app.tsx <<'APP'
+import '../styles/globals.css'
+import type { AppProps } from 'next/app'
+
+export default function App({ Component, pageProps }: AppProps) {
+  return <Component {...pageProps} />
+}
+APP
+
+# Home page
+cat > src/pages/index.tsx <<'IDX'
+import Head from 'next/head'
+import Link from 'next/link'
+
+export default function Home(){
+  return (
+    <div className="min-h-screen p-6">
+      <Head><title>Rajasthan AI Scholar</title></Head>
+      <main className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2">Rajasthan AI Scholar</h1>
+        <p className="text-gray-600 mb-6">AI Tutor for Rajasthan Board — Login to continue.</p>
+        <div className="flex gap-3">
+          <Link href="/login"><a className="px-4 py-2 bg-blue-600 text-white rounded">Sign in</a></Link>
+          <Link href="/exam"><a className="px-4 py-2 bg-green-600 text-white rounded">Practice Exams</a></Link>
+        </div>
+      </main>
+    </div>
+  )
+}
+IDX
+
+# Login page (NextAuth placeholder)
+cat > src/pages/login.tsx <<'LG'
+import Head from 'next/head'
+import { signIn } from 'next-auth/react'
+import Link from 'next/link'
+
+export default function Login(){
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <Head><title>Login</title></Head>
+      <div className="bg-white p-8 rounded-xl shadow w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-4">Sign in</h2>
+        <button onClick={()=>signIn('google')} className="w-full bg-red-600 text-white py-2 rounded">Sign in with Google</button>
+        <p className="mt-4 text-sm"><Link href="/">Back to home</Link></p>
+      </div>
+    </div>
+  )
+}
+LG
+
+# Dashboard
+cat > src/pages/dashboard.tsx <<'DB'
+import Head from 'next/head'
+import Link from 'next/link'
+
+export default function Dashboard(){
+  return (
+    <div className="min-h-screen p-6">
+      <Head><title>Dashboard</title></Head>
+      <div className="max-w-5xl mx-auto">
+        <header className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <Link href="/"><a className="text-sm text-blue-600">Home</a></Link>
+        </header>
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 bg-white p-6 rounded-xl shadow">Syllabus Chat & Lessons (coming)</div>
+          <aside className="bg-white p-6 rounded-xl shadow">Progress</aside>
+        </section>
+      </div>
+    </div>
+  )
+}
+DB
+
+########################
+# AI Mentor wrapper
+########################
+mkdir -p src/ai/flows
+cat > src/ai/flows/ai-mentor-initial-prompt.ts <<'P'
+export default async function initialPrompt(){
+  return { role: 'system', content: 'You are Rajasthan AI Scholar, a friendly Hindi tutor.' }
+}
+P
+
+cat > src/ai/mentor-index.ts <<'M'
+/**
+ * Simple wrapper: import this from server API to handle mentor messages.
+ * This file expects there to be a flows file at src/ai/flows/ai-mentor-chat-flow.ts
+ * If not present, it provides a fallback behavior.
+ */
+let chatFlow;
+try {
+  chatFlow = require('./flows/ai-mentor-chat-flow').default;
+} catch (e) {
+  chatFlow = async ({ messages }) => {
+    const last = messages.filter(m=>m.role==='user').slice(-1)[0];
+    return { role: 'assistant', content: `मैंने सुना: "${last?.content || ''}". आप किस chapter पर चाहेंगे?` }
+  }
+}
+export default async function handleMentor({ userId, message, memory = [] }){
+  const initial = await require('./flows/ai-mentor-initial-prompt').default();
+  const messages = [initial, ...memory, { role:'user', content: message }];
+  const assistant = await chatFlow({ userId, messages });
+  return assistant;
+}
+M
+
+########################
+# API routes: mentor + exam + evaluate + voice
+########################
+
+# mentor api
+cat > src/pages/api/mentor.ts <<'AM'
+import type { NextApiRequest, NextApiResponse } from 'next'
+const mentor = require('../../../src/ai/mentor-index').default
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse){
+  if(req.method !== 'POST') return res.status(405).json({error:'Method not allowed'})
+  const { userId='anon', message='', memory=[] } = req.body || {}
+  try {
+    const assistant = await mentor({ userId, message, memory })
+    return res.status(200).json({ assistant })
+  } catch(err){
+    console.error(err)
+    return res.status(500).json({ error: 'mentor error' })
+  }
+}
+AM
+
+# exam list
+cat > src/pages/api/exam/list.ts <<'EL'
+export default function handler(req, res){
+  const p = require('path').join(process.cwd(),'src','data','exams.json')
+  const fs = require('fs')
+  const data = fs.existsSync(p) ? fs.readFileSync(p,'utf8') : '[]'
+  res.status(200).json(JSON.parse(data))
+}
+EL
+
+# exam submit (saves to tmp_submissions)
+cat > src/pages/api/exam/submit.ts <<'ES'
+export default function handler(req,res){
+  if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'})
+  const body = req.body || {}
+  const fs = require('fs'), path = require('path')
+  const id = 'res_' + Date.now()
+  const store = { id, timestamp: Date.now(), body }
+  const pdir = path.join(process.cwd(),'tmp_submissions')
+  if(!fs.existsSync(pdir)) fs.mkdirSync(pdir)
+  fs.writeFileSync(path.join(pdir, id + '.json'), JSON.stringify(store,null,2))
+  res.status(200).json({ resultId: id })
+}
+ES
+
+# evaluate (simple POC)
+cat > src/pages/api/exam/evaluate.ts <<'EV'
+const fs = require('fs'), path = require('path')
+function normalize(s){ return (s||'').toString().toLowerCase().replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim() }
+function sim(a,b){
+  a = normalize(a).split(' ').filter(Boolean); b = normalize(b).split(' ').filter(Boolean)
+  if(!a.length||!b.length) return 0
+  const setB = new Set(b); let c=0; for(const w of a) if(setB.has(w)) c++
+  return c/Math.max(a.length,b.length)
+}
+export default function handler(req,res){
+  if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'})
+  const { resultId } = req.body || {}
+  if(!resultId) return res.status(400).json({error:'resultId required'})
+  const subPath = path.join(process.cwd(),'tmp_submissions', resultId + '.json')
+  if(!fs.existsSync(subPath)) return res.status(404).json({error:'submission not found'})
+  const submission = JSON.parse(fs.readFileSync(subPath,'utf8'))
+  const examsPath = path.join(process.cwd(),'src','data','exams.json')
+  const exams = fs.existsSync(examsPath) ? JSON.parse(fs.readFileSync(examsPath,'utf8')) : []
+  const exam = exams.find(e=>e.id===submission.body.examId)
+  if(!exam) return res.status(404).json({error:'exam not found'})
+  const questions = exam.questions || []
+  let total=0, obtained=0, details=[]
+  for(let i=0;i<questions.length;i++){
+    const q = questions[i]
+    const userAns = submission.body.answers[i] || ''
+    let qTotal = 1, qScore=0, comment=''
+    if(q.type==='mcq'){
+      total += qTotal
+      const correct = (q.answer||'').toString().trim()
+      if(normalize(userAns) === normalize(correct)){ qScore = qTotal; comment='Correct' } else { comment=`Incorrect. Correct: ${correct}` }
+      obtained += qScore
+    } else {
+      total += qTotal
+      const model = q.modelAnswer || q.reference || ''
+      if(model){ const s = sim(userAns, model); qScore = Math.round(s*qTotal*100)/100; comment=`Similarity: ${Math.round(s*100)}%` } else {
+        const len = normalize(userAns).split(' ').filter(Boolean).length; qScore = Math.min(1, len/50); comment='Length heuristic'
+      }
+      obtained += qScore
+    }
+    details.push({ index:i, title:q.title, score:qScore, max:qTotal, comment })
+  }
+  const result = { examId: exam.id, total, obtained: Math.round(obtained*100)/100, details, timestamp:Date.now() }
+  const resultDir = path.join(process.cwd(),'tmp_submissions','results'); if(!fs.existsSync(resultDir)) fs.mkdirSync(resultDir,{recursive:true})
+  const resultIdOut = 'grade_' + Date.now(); fs.writeFileSync(path.join(resultDir, resultIdOut + '.json'), JSON.stringify(result,null,2))
+  res.status(200).json({ resultId: resultIdOut, result })
+}
+EV
+
+# voice query endpoint (placeholder returns TTS base64 from a simple text output)
+cat > src/pages/api/voice/query.ts <<'VQ'
+export default async function handler(req,res){
+  if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'})
+  const { text } = req.body || {}
+  const answer = `यह एक डेमो उत्तर है: ${text} — मुझे माला राम ने बनाया है।`
+  // For demo, return text as audio placeholder (we return base64 empty or pre-generated)
+  // In production integrate with TTS provider and return base64 audio data
+  res.status(200).json({ answer, audio: '' })
+}
+VQ
+
+########################
+# Components: QuestionCard, Timer, ProgressBar, StageVoice
+########################
+cat > src/components/QuestionCard.tsx <<'QC'
+import React from 'react';
+export default function QuestionCard({ q, index, answer, onChange }){
+  return (
+    <div className="bg-white p-4 rounded-xl shadow mb-4">
+      <div className="flex items-start justify-between">
+        <h4 className="font-medium">Q{index+1}. {q.title}</h4>
+        <span className="text-sm text-gray-500">{q.type}</span>
+      </div>
+      <div className="mt-3">
+        {q.type === 'mcq' ? (
+          q.options.map((opt, i) => (
+            <label key={i} className="block p-2 rounded hover:bg-gray-50 cursor-pointer">
+              <input type="radio" name={`q-${index}`} value={opt} checked={answer===opt} onChange={(e)=>onChange(e.target.value)} /> <span className="ml-2">{opt}</span>
+            </label>
+          ))
+        ) : (
+          <textarea value={answer||''} onChange={(e)=>onChange(e.target.value)} className="w-full p-2 border rounded" rows={6} placeholder="Type your answer..." />
+        )}
+      </div>
+    </div>
+  )
+}
+QC
+
+cat > src/components/Timer.tsx <<'TM'
+import React, { useEffect, useState } from 'react';
+export default function Timer({ seconds, onExpire }){
+  const [timeLeft,setTimeLeft] = useState(seconds||0)
+  useEffect(()=>{
+    if(timeLeft<=0){ onExpire && onExpire(); return }
+    const t = setTimeout(()=> setTimeLeft(timeLeft-1), 1000)
+    return ()=> clearTimeout(t)
+  },[timeLeft])
+  const mm = String(Math.floor(timeLeft/60)).padStart(2,'0'), ss = String(timeLeft%60).padStart(2,'0')
+  return <div className="text-sm font-medium">{mm}:{ss}</div>
+}
+TM
+
+cat > src/components/ProgressBar.tsx <<'PB'
+export default function ProgressBar({ current, total }) {
+  const pct = Math.round((current/total)*100 || 0);
+  return (
+    <div className="w-full">
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="h-2 rounded-full" style={{width: pct + '%', background: 'linear-gradient(90deg,#06b6d4,#3b82f6)'}}></div>
+      </div>
+      <div className="text-xs mt-2">{current}/{total} answered</div>
+    </div>
+  );
+}
+PB
+
+# StageVoice component (basic web wakeword using Web Speech)
+cat > src/components/StageVoice.tsx <<'SV'
+'use client';
+import { useEffect, useRef, useState } from 'react';
+
+export default function StageVoice(){
+  const [status,setStatus] = useState('Idle');
+  const recogRef = useRef<any>(null);
+
+  useEffect(()=>{
+    // Setup SpeechRecognition (browser dependent)
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if(!SpeechRecognition){ setStatus('SpeechRecognition not supported'); return }
+    const r = new SpeechRecognition();
+    r.lang = 'hi-IN';
+    r.continuous = true;
+    r.interimResults = false;
+    r.onresult = async (e:any) => {
+      const txt = e.results[e.results.length-1][0].transcript;
+      // look for wakeword (simple)
+      if(txt.toLowerCase().includes('scholar') || txt.toLowerCase().includes('स्कॉलर') || txt.toLowerCase().includes('ओ स्कॉलर')){
+        setStatus('Wakeword detected - listening question...');
+        // after wakeword the next utterance will be handled by same recognition (for simplicity we treat this text as query)
+        await handleQuery(txt);
+      }
+    };
+    r.onerror = (err:any)=> console.error('recog error', err)
+    r.onend = ()=> { r.start() } // auto-restart
+    r.start();
+    recogRef.current = r;
+    setStatus('Stage mode active');
+    return ()=> r.stop();
+  }, []);
+
+  async function handleQuery(text:string){
+    setStatus('Thinking...');
+    try {
+      const res = await fetch('/api/voice/query', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ text })})
+      const data = await res.json()
+      setStatus('Speaking answer...');
+      if(data.audio){
+        const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
+        audio.play();
+      } else {
+        // fallback: use utterance
+        const utter = new SpeechSynthesisUtterance(data.answer || 'उत्तर नहीं मिला');
+        utter.lang = 'hi-IN';
+        window.speechSynthesis.speak(utter);
+      }
+      setStatus('Stage mode active');
+    }catch(e){ console.error(e); setStatus('Error') }
+  }
+
+  return (
+    <div className="fixed bottom-6 right-6 p-4 bg-blue-700 text-white rounded-xl shadow">
+      <div className="font-medium">Stage Mode</div>
+      <div className="text-xs mt-1">{status}</div>
+    </div>
+  )
+}
+SV
+
+########################
+# Exam pages (list, start, result)
+########################
+mkdir -p src/pages/exam/start src/pages/exam/result
+cat > src/pages/exam/index.tsx <<'EXI'
+import Link from 'next/link'
+import fs from 'fs'
+import path from 'path'
+
+export default function Exams({ exams }){
+  return (
+    <div className="min-h-screen p-6">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-2xl font-bold mb-4">Practice Exams</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {exams.map(e=>(
+            <div key={e.id} className="bg-white p-4 rounded-xl shadow">
+              <h3 className="font-semibold">{e.title}</h3>
+              <p className="text-sm text-gray-500">{e.description}</p>
+              <div className="mt-4 flex justify-between items-center">
+                <div className="text-sm">{e.questions.length} q • {e.duration/60} min</div>
+                <Link href={`/exam/start/${e.id}`}><a className="px-3 py-1 bg-blue-600 text-white rounded">Start</a></Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export async function getStaticProps(){
+  const p = path.join(process.cwd(),'src','data','exams.json')
+  const raw = require('fs').existsSync(p) ? require('fs').readFileSync(p,'utf8') : '[]'
+  const exams = JSON.parse(raw)
+  return { props: { exams } }
+}
+EXI
+
+cat > src/pages/exam/start/[id].tsx <<'EXS'
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+import QuestionCard from '../../../components/QuestionCard'
+import Timer from '../../../components/Timer'
+import ProgressBar from '../../../components/ProgressBar'
+
+export default function Start(){
+  const router = useRouter(); const { id } = router.query
+  const [exam,setExam] = useState<any>(null)
+  const [answers,setAnswers] = useState<any>({})
+  const [current,setCurrent] = useState(0)
+
+  useEffect(()=>{
+    async function load(){ const res = await fetch('/api/exam/list'); const data = await res.json(); const found = data.find((x:any)=>x.id===id) || data[0]; setExam(found) }
+    load()
+  },[id])
+
+  if(!exam) return <div className="p-6">Loading...</div>
+  const q = exam.questions[current]
+  function setAns(v:any){ setAnswers({...answers, [current]: v}) }
+  function next(){ setCurrent(Math.min(current+1, exam.questions.length-1)) }
+  function prev(){ setCurrent(Math.max(0, current-1)) }
+  async function submit(){
+    const res = await fetch('/api/exam/submit',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ examId: exam.id, answers }) })
+    const data = await res.json()
+    router.push(`/exam/result/${data.resultId}`)
+  }
+
+  return (
+    <div className="min-h-screen p-4">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <main className="lg:col-span-3 bg-white p-6 rounded-xl shadow">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">{exam.title}</h2>
+            <Timer seconds={exam.duration} onExpire={submit} />
+          </div>
+          <QuestionCard q={q} index={current} answer={answers[current]} onChange={setAns} />
+          <div className="flex justify-between mt-4">
+            <div className="flex gap-2">
+              <button onClick={prev} className="px-3 py-1 bg-gray-100 rounded">Prev</button>
+              <button onClick={next} className="px-3 py-1 bg-gray-100 rounded">Next</button>
+            </div>
+            <div>
+              <button onClick={submit} className="px-4 py-2 bg-green-600 text-white rounded">Submit</button>
+            </div>
+          </div>
+        </main>
+        <aside className="bg-white p-6 rounded-xl shadow">
+          <h3 className="font-medium mb-2">Overview</h3>
+          <ProgressBar current={Object.keys(answers).length} total={exam.questions.length} />
+          <div className="mt-4">
+            {exam.questions.map((q,i)=> <div key={i} className="p-2 rounded hover:bg-gray-50">{i+1}. {q.type}</div>)}
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+EXS
+
+cat > src/pages/exam/result/[id].tsx <<'RES'
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+export default function Result(){
+  const router = useRouter(); const { id } = router.query
+  const [resData,setRes] = useState<any>(null)
+  useEffect(()=>{ if(!id) return; fetch('/api/exam/evaluate',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ resultId: id }) }).then(r=>r.json()).then(d=>setRes(d)) },[id])
+  if(!resData) return <div className="p-6">Loading result...</div>
+  return (
+    <div className="min-h-screen p-6">
+      <div className="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow">
+        <h2 className="text-xl font-bold mb-4">Result</h2>
+        <p>Total: {resData.result.total} • Obtained: {resData.result.obtained}</p>
+        <div className="mt-4">
+          {resData.result.details.map((d:any,i:number)=>(
+            <div key={i} className="mb-3 p-3 border rounded">
+              <strong>Q{d.index+1}</strong> — {d.title} <br/>
+              Score: {d.score}/{d.max} <br/>
+              Comment: {d.comment}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+RES
+
+########################
+# Sample data: exams + syllabus
+########################
+cat > src/data/exams.json <<'EJSON'
+[
+  {
+    "id":"exam_math_1",
+    "title":"Class 12 - Math Practice Set A",
+    "description":"Mixed practice covering Relations & Inverse Trig.",
+    "duration": 30*60,
+    "questions":[
+      {"title":"What is the inverse of sin x?", "type":"written", "modelAnswer":"The inverse of sin x is arcsin x, defined on [-1,1]."},
+      {"title":"If f(x)=x^2, what is f(2)?", "type":"mcq", "options":["2","3","4","6"], "answer":"4"},
+      {"title":"Define a one-to-one function.", "type":"written", "modelAnswer":"A one-to-one function maps distinct inputs to distinct outputs."}
+    ]
+  },
+  {
+    "id":"exam_phy_1",
+    "title":"Class 12 - Physics Practice Set A",
+    "description":"Electrostatics basics.",
+    "duration": 20*60,
+    "questions":[
+      {"title":"State Coulomb's Law.", "type":"written", "modelAnswer":"Coulomb's law states that the force between two point charges is proportional to the product of charges and inversely proportional to square of distance."},
+      {"title":"Charge of electron is?", "type":"mcq", "options":["1.6e-19 C","9.1e-31 kg","1.6e-19 kg","9.1e-31 C"], "answer":"1.6e-19 C"}
+    ]
+  }
+]
+EJSON
+
+cat > src/data/syllabus.json <<'SJSON'
+{
+  "Class12":{
+    "Math":[{"chapter":"Relations and Functions","topics":["Relations","Functions"]}],
+    "Physics":[{"chapter":"Electrostatics","topics":["Electric Charges","Coulomb's Law"]}]
+  }
+}
+SJSON
+
+########################
+# Firebase client initializer (placeholder)
+########################
+cat > src/lib/firebase.ts <<'FB'
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+const clientConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
+};
+let app;
+if(!getApps().length) app = initializeApp(clientConfig); else app = getApps()[0];
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export default app;
+FB
+
+########################
+# Capacitor config (basic) and instructions file
+########################
+cat > capacitor.config.json <<'CAP'
+{
+  "appId": "com.malaram.rajasthanaischolar",
+  "appName": "Rajasthan AI Scholar",
+  "webDir": ".next",
+  "bundledWebRuntime": false
+}
+CAP
+
+cat > README_CAPACITOR.md <<'RC'
+Capacitor / Android build instructions:
+
+1. Build Next.js for production:
+   npm run build
+   (Next's output folder for static export may be 'out' if using `next export`. For SPA serve, ensure webDir points to the folder you will copy to capacitor webDir. Here we use .next for dev purposes; recommended to generate a static build or host separately.)
+
+2. Install Capacitor globally if not installed:
+   npm install -g @capacitor/cli
+   npm install @capacitor/core
+
+3. Initialize Capacitor (only once):
+   npx cap init rajasthan-ai-scholar com.malaram.rajasthanaischolar --web-dir=.next
+
+4. Add Android:
+   npx cap add android
+
+5. Sync build:
+   npx cap copy android
+   npx cap open android  # opens Android Studio
+
+6. In Android Studio: Build -> Build Bundle(s) / APK(s) -> Build APK(s)
+
+Notes:
+- For production you might prefer to host web on Vercel and implement a native wrapper that loads remote URL.
+- For microphone and TTS permissions you need to add required Android permissions in manifest and handle runtime permissions.
+RC
+
+########################
+# .env.example and .gitignore
+########################
+cat > .env.local.example <<'ENV'
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+NEXTAUTH_SECRET=
+ENV
+
+cat > .gitignore <<'GI'
+node_modules/
+.next/
+out/
+.env.local
+.env
+tmp_submissions/
+android/
+GI
+
+########################
+# Finalize - install deps
+########################
+echo "Installing npm dependencies (this may take a while)..."
+npm install --silent
+
+echo "Project created at: $ROOT"
+echo "Run: cd $ROOT && npm run dev"
+echo "To create Android APK with Capacitor see README_CAPACITOR.md"
